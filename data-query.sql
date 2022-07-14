@@ -92,3 +92,136 @@ select * from customers where (country ="USA" and state="NV" and creditLimit>500
 
 
 
+-- join first fliter where == then select
+
+SELECT firstname, lastName, city, addressLine1, addressLine2 FROM employees JOIN offices
+ on employees.officeCode = offices.officeCode
+ where country="USA"
+
+
+
+ -- show customerName along with  firstName, lastName and email of their sales rep
+
+select customerName,firstName, lastName, email from customers join employees on customers.salesRepEmployeeNumber = employees.employeeNumber
+
+
+-- show the customerName along with the firstName, lastName and email of their sales rep
+ -- only for customers that have a sales rep
+ -- inner join 
+select customerName, salesRepEmployeeNumber, firstName, lastName, email
+from customers join employees
+on customers.salesRepEmployeeNumber = employees.employeeNumber
+
+--show all customers with their sales rep info, regardless of
+--whether the customers have a sales repo or not
+-- show the customerName along with the firstName, lastName and email of their sales rep
+select customerName, firstName, lastName, email
+from customers left join employees
+on customers.salesRepEmployeeNumber = employees.employeeNumber
+
+
+-- show the customerName along with the firstName, lastName and email of their sales rep
+-- will show for all employeess regardless of whether they have customers
+-- (customers with no sales rep won't show up)
+select customerName, firstName, lastName, email
+from customers right join employees
+on customers.salesRepEmployeeNumber = employees.employeeNumber
+
+-- full outer join == left join + right join
+
+-- for each customer in the USA, show the name of the sales rep and their office number
+select customerName AS "Customer Name", customers.country as "Customer Country", firstName, lastName, offices.phone from customers JOIN employees
+  ON customers.salesRepEmployeeNumber = employees.employeeNumber
+  JOIN offices ON employees.officeCode = offices.officeCode
+  WHERE customers.country = "USA";
+
+
+
+-- for each customer, show the name of the sales rep  and their  office number
+
+select customerName AS "Customer Name", customers.country, firstName,lastName,offices.phone from customers join employees
+on customers.salesRepEmployeeNumber = employees.employeeNumber
+join offices on employees.officeCode = offices.officeCode
+where customers.country = "USA"
+
+
+---date manipulation
+
+--tell u current date on server
+select NOW()
+select curdate(); 
+
+
+
+-- Show all payments made after 30th June 2003 
+SELECT * FROM payments WHERE paymentDate > "2003-06-30"
+
+-- show all payments between 2003-01-01 and 2003-06-30
+SELECT * FROM payments WHERE paymentDate >= "2003-01-01" AND
+  paymentDate <= "2003-06-30"
+
+SELECT * FROM payments where paymentDate BETWEEN "2003-01-01" AND "2003-06-30";
+
+-- display the year where a payment is made:
+select checkNumber, YEAR(paymentDate) FROM payments
+
+-- show all payments made in the year 2003:
+select checkNumber, YEAR(paymentDate) FROM payments WHERE YEAR(paymentDate) = 2003;
+
+-- display the month, year and day for each payment made
+select checkNumber, YEAR(paymentDate), MONTH(paymentDate), DAY(paymentDate) FROM payments
+
+
+
+
+
+---compare date use a datetime data type not varchar
+
+
+SELECT * FROM payments where paymentDate > "2003-06-30"
+
+
+
+SELECT * FROM payments where paymentDate > "2003-06-30" and payemntDate <= "2003-06-30"
+
+
+SELECT * FROM payments where paymentDate > between "2003-06-30" and payemntDate <= "2003-06-30"
+
+
+
+-- month, year and day functions, doesnt work in varchar
+select checknumber, year(paymentDate) from payments where year(paymentDate) =2003
+
+
+-- month, year and day functions, doesnt work in varchar
+select checknumber, year(paymentDate),month(paymentDate),day(paymentDate) from payments
+
+
+-- 1
+SELECT city,phone,country FROM offices;
+
+--2
+SELECT * FROM orders where comments like "FedEx"
+--3
+SELECT contactFirstName,contactLastName FROM customers order by customerName desc
+
+
+
+--4
+SELECT * FROM employees
+where  jobTitle = "Sales Rep"
+and(officeCode =1 or officeCode =2 or officeCode =3) 
+and (firstName like "%son%" or lastName like "%son%")
+
+
+--5
+
+SELECT customerName,contactFirstName,contactLastName FROM customers join orders
+on customers.customerNumber = orders.customerNumber
+WHERE customers.customerNumber like "124"
+
+---6
+
+
+select productName,orderdetails.* from products join orderdetails
+on products.productCode = orderdetails.productCode
