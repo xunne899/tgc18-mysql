@@ -1,0 +1,1 @@
+let f = ["apples", "bananas", "oranges","pears"]
