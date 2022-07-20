@@ -1,23 +1,24 @@
-const express = require('express')
-const hbs = require('hbs');
-const wax = require('wax-on');
-require('handlebars-helpers')({
-    'handlebars': hbs.handlebars
-})
-require('dotenv').config();
-const mysql2 = require('mysql2/promise');  // to use await/async, we must
+const express = require("express");
+const hbs = require("hbs");
+const wax = require("wax-on");
+require("handlebars-helpers")({
+  handlebars: hbs.handlebars,
+});
+require("dotenv").config();
+const mysql2 = require("mysql2/promise"); // to use await/async, we must
 // use the promise version of mysql2
 
-
-
 const app = express();
-app.set('view engine', 'hbs');
+app.set("view engine", "hbs");
 wax.on(hbs.handlebars);
-wax.setLayoutPath('./views/layouts')
+wax.setLayoutPath("./views/layouts");
 
-app.use(express.urlencoded({
-    'extended': false
-}));
+app.use(
+  express.urlencoded({
+    extended: false,
+  })
+);
+
 async function main() {
   const connection = await mysql2.createConnection({
     host: process.env.DB_HOST, // host -> ip address of the database server
@@ -179,84 +180,177 @@ async function main() {
     });
   });
 
-  app.post('/categories/:category_id/delete', async function(req,res){
-        
+  app.post("/categories/:category_id/delete", async function (req, res) {
     // find all the films which have category_id equal to the one that we are trying to delete
     const deleteQuery = "DELETE FROM film_category where category_id = ?";
     await connection.execute(deleteQuery, [parseInt(req.params.category_id)]);
-   
+
     const query = "DELETE FROM category where category_id = ?";
     const bindings = [parseInt(req.params.category_id)];
     await connection.execute(query, bindings);
-    res.redirect('/categories');
-})
+    res.redirect("/categories");
+  });
 
+  app.get("/films/create", async function (req, res) {
+    const [languages] = await connection.execute("SELECT * FROM language");
 
-// app.get('/film/create', async function(req,res){
-//   const[languages] = await connection.execute(
-//     "select * from languages"
-//   )
-// })
+    const [actors] = await connection.execute("SELECT * FROM actor");
 
-app.get('films',async function(req,res){
-  const[films] = await connection.execute("SELECT * FROM film")
-  res.render('films',{
-    films:films
-  })
-})
+    res.render("create_film", {
+      languages: languages,
+      actors: actors,
+    });
+  });
 
-app.get('/films', async function(req,res){
-  const [films] = await connection.execute(`SELECT film_id, title, description, language.name AS 'language' FROM film 
-                                            JOIN language 
-                                            ON film.language_id = language.language_id`);
-  res.render('films',{
-      films:films
-  })
-})
+  app.get("/films", async function (req, res) {
+    const [films] = await connection.execute(`SELECT film_id, title, description, language.name AS 'language' FROM film 
+                                                  JOIN language 
+                                                  ON film.language_id = language.language_id`);
 
-app.post('/films/create', async function (req, res) {
-  /*
-  insert into film (title, description, language_id)
-         values ("The Lord of the Ring", "blah blah blah", 1);
-  */
-  await connection.execute(
-      `insert into film (title, description, language_id) values (?, ?, ?)`,
-      [req.body.title, req.body.description, parseInt(req.body.language_id), ]
-  );
-  res.redirect('/films');
-})
+    res.render("films", {
+      films: films,
+    });
+  });
 
-app.get('/films/:film_id/update', async function (req, res) {
-  const [languages] = await connection.execute("SELECT * from language");
-  const [films] = await connection.execute("SELECT * from film where film_id = ?",
-      [parseInt(req.params.film_id)]);
-  const filmToUpdate = films[0];
-  res.render('update_film',{
-      'film':filmToUpdate,
-      'languages':languages
-  })
+  app.post("/films/create", async function (req, res) {
+    let actors = req.body.actors ? req.body.actors : [];
+    actors = Array.isArray(actors) ? actors : [actors];
 
-})
+    // nested ternary expression
+    // let actors = req.body.actors ?
+    //     (Array.isArray(req.body.actors) ? req.body.actors : [req.body.actors])
+    //     : [];
+    /*
+        insert into film (title, description, language_id)
+               values ("The Lord of the Ring", "blah blah blah", 1);
+        */
 
-app.post('/films/:film_id/update', async function(req,res){
-  /* sample query:
-   update film set title="ASD ASD",
-           description="ASD2 ASD2",
-           language_id=3
-          WHERE film_id=1;
-  */
- await connection.execute(
-  `UPDATE film SET title=?,
-                   description=?,
-                   language_id=?
-                   WHERE film_id=?`,
-  [req.body.title, req.body.description, parseInt(req.body.language_id), req.params.film_id]
- );
- res.redirect('/films');
-})
+    // 1. we have to create the row first
+    const [results] = await connection.execute(`insert into film (title, description, language_id) values (?, ?, ?)`, [
+      req.body.title,
+      req.body.description,
+      parseInt(req.body.language_id),
+    ]);
 
+    const newFilmId = results.insertId;
 
+    // 2. then add in the relationship in the pivot table
+    // sample query:
+    /*
+         insert into film_actor  (actor_id, film_id) values (2, 1002)
+        */
+    // for (let actorId of actors) {
+    //     const bindings = [actorId, newFilmId];
+    //     await connection.execute(`insert into film_actor (actor_id, film_id) values (?, ?)`, bindings);
+    // }
+    let query = "INSERT INTO film_actor (actor_id, film_id) VALUES ";
+    const bindings = [];
+    for (let actorId of actors) {
+      query += " (?,?),";
+      bindings.push(actorId, newFilmId);
+    }
+    query = query.slice(0, -1); // omit the last comma
+    console.log(bindings);
+    await connection.execute(query, bindings);
 
+    res.redirect("/films");
+  });
+
+  app.get("/films/:film_id/update", async function (req, res) {
+    const [languages] = await connection.execute("SELECT * from language");
+    const [films] = await connection.execute("SELECT * from film where film_id = ?", [parseInt(req.params.film_id)]);
+    const [actors] = await connection.execute("SELECT * from actor");
+    const [currentActors] = await connection.execute("SELECT actor_id from film_actor where film_id =?", [req.params.film_id]);
+    const currentActorIds = currentActors.map((a) => a.actor_id);
+    console.log(currentActorIds);
+    const filmToUpdate = films[0];
+
+    res.render("update_film", {
+      film: filmToUpdate,
+      languages: languages,
+      actors: actors,
+      currentActors: currentActorIds,
+    });
+  });
+
+  app.post("/films/:film_id/update", async function (req, res) {
+    /* sample query:
+         update film set title="ASD ASD",
+                 description="ASD2 ASD2",
+                 language_id=3
+                WHERE film_id=1;
+        */
+    // always update the row first
+    await connection.execute(
+      `UPDATE film SET title=?,
+                         description=?,
+                         language_id=?
+                         WHERE film_id=?`,
+      [req.body.title, req.body.description, parseInt(req.body.language_id), req.params.film_id]
+    );
+
+    // update the M:M relationship
+    // update actors
+    // first remove all the actors from the film
+    await connection.execute("DELETE FROM film_actor WHERE film_id = ?", [req.params.film_id]);
+
+    // second re-add all the selected actors back to the film
+    let actors = req.body.actors ? req.body.actors : [];
+    actors = Array.isArray(actors) ? actors : [actors];
+    for (let actorId of actors) {
+      await connection.execute("INSERT INTO film_actor (film_id, actor_id) VALUES (?, ?)", [parseInt(req.params.film_id), actorId]);
+    }
+
+    res.redirect("/films");
+  });
+
+  app.get("/customers", async function (req, res) {
+    const [customers] = await connection.execute("SELECT customer_id, first_name, last_name, email FROM customer");
+
+    res.render("customers", {
+      customers: customers,
+    });
+  });
+
+  app.get("/customers/create", async function (req, res) {
+    // retrieve all the existing stores
+    const [stores] = await connection.execute("SELECT store.store_id, address.address FROM store JOIN address on store.address_id = address.address_id");
+    const [cities] = await connection.execute("SELECT * from city");
+    // show the customer a form for them enter their details and address
+    res.render("create_customer.hbs", {
+      stores: stores,
+      cities: cities,
+    });
+  });
+
+  app.post("/customers/create", async function (req, res) {
+    await connection.query("START TRANSACTION");
+    try {
+      // 1. create the address first
+      const createAddressQuery = `INSERT INTO address (address, district, city_id, phone, location) VALUES (?,?,?,?,POINT(0.0000,90.0000))`;
+      const addressBindings = [req.body.address, req.body.district, req.body.city_id, req.body.phone];
+      const [results] = await connection.execute(createAddressQuery, addressBindings);
+
+      // 2. create the customer and provide the id of the address row that
+      // was created in step 1
+      const createCustomerQuery = `INSERT INTO customer (store_id, first_name, last_name, email, address_id) VALUES (?,?,?,?,?)`;
+      const customerBindings = [
+        req.body.store_id,
+        req.body.first_name,
+        req.body.last_name,
+        req.body.email,
+        results.insertId, // get the address_id of the address we have just created above
+      ];
+      console.log(customerBindings);
+      await connection.execute(createCustomerQuery, customerBindings);
+      await connection.execute("COMMIT");
+      res.redirect("/customers");
+    } catch (e) {
+      await connection.execute("ROLLBACK");
+      console.log(e);
+      res.redirect("/error");
+    }
+  });
 }
 main();
 
